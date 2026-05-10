@@ -63,7 +63,10 @@ print(data.tail())
 # 이 데이터로 신경망을 학습시킨다...
 import os
 
+print("환경 설정---------------------------------------------------------")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+
 from pylab import plt
 
 plt.style.use("seaborn-v0_8")
@@ -76,6 +79,8 @@ from tensorflow.python.framework.ops import disable_eager_execution
 disable_eager_execution()
 from keras.layers import Dense
 from keras.models import Sequential
+
+print("Num GPUs Available: ", len(tf.config.list_physical_devices("GPU")))
 
 # 완전연결층이 2개...
 model = Sequential()
