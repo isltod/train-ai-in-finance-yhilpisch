@@ -63,3 +63,100 @@ def epoch():
 rl = np.array([epoch() for _ in range(15)])
 print(rl)
 print(rl.mean())
+
+# 회귀
+from sklearn.neural_network import MLPRegressor
+
+
+def f(x):
+    return 2 * x**2 - x**3 / 3
+
+
+x = np.linspace(-2, 4, 25)
+y = f(x)
+print("x:", x.shape)
+print("y:", y.shape)
+
+model = MLPRegressor(
+    hidden_layer_sizes=3 * [256], learning_rate_init=0.03, max_iter=5000
+)
+model.fit(x.reshape(-1, 1), y)
+y_ = model.predict(x.reshape(-1, 1))
+MSE = ((y - y_) ** 2).mean()
+print(MSE)
+# plt.figure(figsize=(10, 6))
+# plt.plot(x, y, "ro", label="sample data")
+# plt.plot(x, y_, lw=3.0, label="dnn estimation")
+# plt.legend()
+# plt.show()
+
+# Keras 신경망 회귀
+import os
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+import tensorflow as tf
+
+tf.random.set_seed(100)
+from keras.layers import Dense
+from keras.models import Sequential
+
+print(tf.config.list_physical_devices("GPU"))
+
+# model = Sequential()
+# # (?,256) 출력
+# model.add(Dense(256, activation="relu", input_dim=1))
+# model.add(Dense(1, activation="linear"))
+# model.compile(loss="mse", optimizer="rmsprop")
+
+# plt.figure(figsize=(10, 6))
+# plt.plot(x, y, "ro", label="sample data")
+# for _ in range(1, 6):
+#     model.fit(x, y, epochs=100, verbose=False)
+#     y_ = model.predict(x)
+#     MSE = ((y - y_.flatten()) ** 2).mean()
+#     # for 문에서 _ 도 i 처럼 써먹을 수가 있네...
+#     print(f"round={_} | MSE={MSE:.5f}")
+# 이렇게 하면 iter마다 예측 결과를 비교해서 그래프로 그릴 수가 있구나..
+#     plt.plot(x, y_, "--", label=f"round={_}")
+# plt.legend()
+# plt.show()
+
+# 보편적 근사? Universal Approximation
+np.random.seed(0)
+x = np.linspace(-1, 1)
+y = np.random.random(len(x)) * 2 - 1
+plt.figure(figsize=(10, 6))
+plt.plot(x, y, "ro", label="sample data")
+for deg in [1, 5, 9, 11, 13, 15]:
+    # 이것도 최소자승법 이용한 선형회귀
+    reg = np.polyfit(x, y, deg=deg)
+    y_ = np.polyval(reg, x)
+    MSE = ((y - y_) ** 2).mean()
+    print(f"deg={deg:2d} | MSE={MSE:.5f}")
+    plt.plot(x, np.polyval(reg, x), label=f"deg={deg}")
+plt.legend()
+plt.show()
+
+model = Sequential()
+model.add(Dense(256, activation="relu", input_dim=1))
+for _ in range(3):
+    model.add(Dense(256, activation="relu"))
+model.add(Dense(1, activation="linear"))
+model.compile(loss="mse", optimizer="rmsprop")
+print(model.summary())
+import sys
+
+sys.path.append(".")
+from util import Timer
+
+with Timer():
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, y, "ro", label="sample data")
+    for _ in range(1, 8):
+        model.fit(x, y, epochs=500, verbose=False)
+        y_ = model.predict(x)
+        MSE = ((y - y_.flatten()) ** 2).mean()
+        print(f"round={_} | MSE={MSE:.5f}")
+        plt.plot(x, y_, "--", label=f"round={_}")
+    plt.legend()
+plt.show()
