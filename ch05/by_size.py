@@ -20,38 +20,10 @@ plt.style.use("seaborn-v0_8")
 mpl.rcParams["savefig.dpi"] = 300
 mpl.rcParams["font.family"] = "serif"
 
-url = "data/aiif_eikon_eod_data.csv"
-raw = pd.read_csv(url, index_col=0, parse_dates=True)["EUR="]
-# 월말 값으로 리샘플링
-l = raw.resample("1ME").last()
-# y값은 평균을 제거해주고
-l = l.values
-l -= l.mean()
-# 별 의미없는 x축을 만들고...
-f = np.linspace(-2, 2, len(l))
-
 
 # 성능 척도는 평균 제곱 오차
 def MSE(l, p):
     return np.mean((l - p) ** 2)
-
-
-reg = {}
-# 2차씩 증가하면서 회귀식 만들어 MSE 측정
-for d in range(1, 12, 2):
-    reg[d] = np.polyfit(f, l, deg=d)
-    p = np.polyval(reg[d], f)
-    mse = MSE(l, p)
-    print(f"{d:2d} | MSE={mse}")
-
-# MSE는 0.0012까지 줄어든다..
-plt.figure(figsize=(10, 6))
-plt.plot(f, l, "ro", label="sample data")
-for d in reg:
-    p = np.polyval(reg[d], f)
-    plt.plot(f, p, "--", label=f"deg={d}")
-plt.legend()
-plt.show()
 
 
 def create_dnn_model(hl=1, hu=256):
@@ -70,6 +42,34 @@ def create_dnn_model(hl=1, hu=256):
     model.add(Dense(1, activation="linear"))
     model.compile(loss="mse", optimizer="rmsprop")
     return model
+
+
+url = "data/aiif_eikon_eod_data.csv"
+raw = pd.read_csv(url, index_col=0, parse_dates=True)["EUR="]
+# 월말 값으로 리샘플링
+l = raw.resample("1ME").last()
+# y값은 평균을 제거해주고
+l = l.values
+l -= l.mean()
+# 별 의미없는 x축을 만들고...
+f = np.linspace(-2, 2, len(l))
+
+reg = {}
+# 2차씩 증가하면서 회귀식 만들어 MSE 측정
+for d in range(1, 12, 2):
+    reg[d] = np.polyfit(f, l, deg=d)
+    p = np.polyval(reg[d], f)
+    mse = MSE(l, p)
+    print(f"{d:2d} | MSE={mse}")
+
+# MSE는 0.0012까지 줄어든다..
+plt.figure(figsize=(10, 6))
+plt.plot(f, l, "ro", label="sample data")
+for d in reg:
+    p = np.polyval(reg[d], f)
+    plt.plot(f, p, "--", label=f"deg={d}")
+plt.legend()
+plt.show()
 
 
 model = create_dnn_model(3)
