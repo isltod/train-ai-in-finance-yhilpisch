@@ -12,6 +12,12 @@ np.set_printoptions(
     precision=5, suppress=True, formatter={"float": lambda x: f"{x:6.3f}"}
 )
 
+# 이게 역사적 일간 데이터
+url = "data/aiif_eikon_eod_data.csv"
+raw = pd.read_csv(url, index_col=0, parse_dates=True).dropna()
+# 이번에는 모든 항목들에 대해서 로그 수익률을 구해놓고...
+rets = np.log(raw / raw.shift(1)).dropna()
+
 
 def dN(x, mu, sigma):
     """Probability density function of a normal random variable x."""
@@ -57,11 +63,6 @@ def print_statistics(rets):
     print("---------------------------------------------")
 
 
-# 이게 역사적 일간 데이터
-url = "data/aiif_eikon_eod_data.csv"
-raw = pd.read_csv(url, index_col=0, parse_dates=True).dropna()
-# 이번에는 모든 항목들에 대해서 로그 수익률을 구해놓고...
-rets = np.log(raw / raw.shift(1)).dropna()
 # 우선 S&P 500으로 정규분표인지 그려보고...아니란다...
 symbol = ".SPX"
 return_histogram(rets[symbol].values, symbol)
