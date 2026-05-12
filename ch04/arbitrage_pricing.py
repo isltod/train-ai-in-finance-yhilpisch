@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from pylab import plt, mpl
-from scipy.optimize import minimize
 
 plt.style.use("seaborn-v0_8")
 mpl.rcParams["savefig.dpi"] = 300
