@@ -15,7 +15,7 @@ raw = pd.read_csv(url, index_col=0, parse_dates=True).dropna()
 raw.info()
 symbols = ["AAPL.O", "MSFT.O", "INTC.O", "AMZN.O", "GLD"]
 # 나누기와 로그 연산을 이렇게 한 번에 할 수 있구나...로그 수익률
-rets = np.log(raw[symbols] / raw[symbols].shift(1)).dropna()
+rets = np.log(raw / raw.shift(1)).dropna()
 # 선택한 주가 테이블
 print(raw[symbols[:]])
 # 그 각각의 첫 번째 값
@@ -28,8 +28,6 @@ print(raw[symbols[:]].iloc[0])
 r = 0.005
 # 시장 포트폴리오 설정...S&P 500 지수인가?
 market = ".SPX"
-# 로그 수익률 한 번에 다 구하고
-rets = np.log(raw / raw.shift(1)).dropna()
 res = pd.DataFrame()
 for sym in rets.columns[:4]:
     # 각 주식별로 돌면서
@@ -79,7 +77,7 @@ res[res["symbol"] == sym].plot(kind="bar", figsize=(10, 6), title=sym)
 plt.show()
 #
 grouped = res.groupby("symbol").mean()
-grouped
+print(grouped)
 grouped.plot(kind="bar", figsize=(10, 6), title="Average Values")
 plt.show()
 #
