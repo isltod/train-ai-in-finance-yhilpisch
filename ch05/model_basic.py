@@ -5,7 +5,7 @@ import sys
 import os
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "6"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import tensorflow as tf
 from keras.layers import Dense
