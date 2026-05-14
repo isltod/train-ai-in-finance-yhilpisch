@@ -61,7 +61,7 @@ class TradingBot:
         self.model = self._build_model(hidden_units, learning_rate, dropout)
 
     def _build_model(self, hu, lr, dropout):
-        """Method to create the DNN model."""
+        # 3개의 완전연결 층 사이에 드롭아웃
         model = Sequential()
         model.add(
             Dense(
@@ -80,31 +80,28 @@ class TradingBot:
         return model
 
     def act(self, state):
-        """Method for taking action based on
-        a) exploration
-        b) exploitation
-        """
+        # 엡실론 비율에 따라 무작위 행동 또는 지금까지 학습된 모델 예측...
         if random.random() <= self.epsilon:
             return self.learn_env.action_space.sample()
         action = self.model.predict(state)[0, 0]
         return np.argmax(action)
 
     def replay(self):
-        """Method to retrain the DNN model based on
-        batches of memorized experiences.
-        """
+        # 각 에피소드 끝에, 경험을 리플레이해서 학습...배치는 랜덤으로 뽑고
         batch = random.sample(self.memory, self.batch_size)
         for state, action, reward, next_state, done in batch:
             if not done:
                 reward += self.gamma * np.amax(self.model.predict(next_state)[0, 0])
             target = self.model.predict(state)
+            # 이건 이해가 안되고 있고...
             target[0, 0, action] = reward
             self.model.fit(state, target, epochs=1, verbose=False)
+        # 다음 도전 전에 엡실론은 감쇠
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
     def learn(self, episodes):
-        """Method to train the DQL agent."""
+        # 에피소드만큼 반복해서 각각 만 번 시도해서, 행동하고 상태받아서 경험으로 저장...
         for e in range(1, episodes + 1):
             state = self.learn_env.reset()
             state = np.reshape(
@@ -134,16 +131,16 @@ class TradingBot:
                         end="\r",
                     )
                     break
+            # 검증 정확도도 같은 모델에서 측정하고
             if self.val:
                 self.validate(e, episodes)
+            # 다음 에피소드에는 학습한 모델로 임하고...
             if len(self.memory) > self.batch_size:
                 self.replay()
         print()
 
     def validate(self, e, episodes):
-        """Method to validate the performance of the
-        DQL agent.
-        """
+        # 검증 데이터로 정확도 측정...
         state = self.valid_env.reset()
         state = np.reshape(state, [1, self.valid_env.lags, self.valid_env.n_features])
         for _ in range(10000):
@@ -166,9 +163,7 @@ class TradingBot:
 
 
 def plot_treward(agent):
-    """Function to plot the total reward
-    per training eposiode.
-    """
+    # 몇 번까지 살아남았나 마지막 25개 평균과 그 회귀 그래프...
     plt.figure(figsize=(10, 6))
     x = range(1, len(agent.averages) + 1)
     y = np.polyval(np.polyfit(x, agent.averages, deg=3), x)
@@ -181,9 +176,7 @@ def plot_treward(agent):
 
 
 def plot_performance(agent):
-    """Function to plot the financial gross
-    performance per training episode.
-    """
+    # 검증 훈련과 검증 데이터로 수익률 그래프...
     plt.figure(figsize=(10, 6))
     x = range(1, len(agent.performances) + 1)
     y = np.polyval(np.polyfit(x, agent.performances, deg=3), x)
