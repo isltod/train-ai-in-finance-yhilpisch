@@ -17,6 +17,7 @@ import tensorflow as tf
 import keras
 from keras.layers import Dense, Dropout
 from keras.models import Sequential
+from keras.optimizers import RMSprop
 from sklearn.metrics import accuracy_score
 from tensorflow.python.framework.ops import disable_eager_execution
 
@@ -180,28 +181,76 @@ class Finance:
 
 # 환율 데이터로 트레이딩 환경 만들고...
 env = Finance("EUR=", ["EUR=", "r"], 10, 5)
-a = env.action_space.sample()
-print("행위 선택", a)
+start_idx = env.action_space.sample()
+print("행위 선택", start_idx)
 print("환경 초기화", env.reset())
+
+symbol = "EUR="
+features = [symbol, "r", "s", "m", "v"]
+# 첫 번째 데이터에서 시작해서 2천 개를 학습용
+start_idx = 0
+end_idx = 2000
+# 그 뒤 500개를 검증용 환경으로 선택
+c = 500
+learn_env = Finance(
+    symbol,
+    features,
+    # 이동 평균 등은 10 시간 단위로 계산
+    window=10,
+    # 시간 쉬프트는 6 단위까지
+    lags=6,
+    # 레버리지는 사용 안하고...
+    leverage=1,
+    # 최저 자산은 85% 유지
+    min_performance=0.85,
+    start=start_idx,
+    end=start_idx + end_idx,
+    # 가우스 정규화는 데이터에 기반해서...
+    mu=None,
+    std=None,
+)
+learn_env.data.info()
+# 검증 환경은 학습 환경 매개변수를 이용해서 초기화...
+valid_env = Finance(
+    symbol,
+    features,
+    window=learn_env.window,
+    lags=learn_env.lags,
+    leverage=learn_env.leverage,
+    min_performance=learn_env.min_performance,
+    start=start_idx + end_idx,
+    end=start_idx + end_idx + c,
+    # 근데 평균/분산도 학습 환경거를 갖다 쓰네?
+    mu=learn_env.mu,
+    std=learn_env.std,
+)
+valid_env.data.info()
 
 
 class FQLAgent:
     def __init__(self, hidden_units, learning_rate, learn_env, valid_env):
+        # 이번에는 학습 환경과 검증 환경 구분
         self.learn_env = learn_env
         self.valid_env = valid_env
+        # 탐색 비율은 100%에서 시작해서 10%까지 -2%로 감쇠
         self.epsilon = 1.0
         self.epsilon_min = 0.1
         self.epsilon_decay = 0.98
         self.learning_rate = learning_rate
+        # Q 값 계산에서 할인율
         self.gamma = 0.95
         self.batch_size = 128
+        # 최대/평균 성공 횟수 기록
         self.max_treward = 0
         self.trewards = list()
         self.averages = list()
+        # 이건 수익률일텐데 그 밑엔 뭐지?
         self.performances = list()
         self.aperformances = list()
         self.vperformances = list()
+        # 경험 기록
         self.memory = deque(maxlen=2000)
+        # 모델은 완전연결 3층에 드롭아웃 끼워서 설정...
         self.model = self._build_model(hidden_units, learning_rate)
 
     def _build_model(self, hu, lr):
@@ -217,72 +266,98 @@ class FQLAgent:
         model.add(Dense(hu, activation="relu"))
         model.add(Dropout(0.3, seed=100))
         model.add(Dense(2, activation="linear"))
-        model.compile(
-            loss="mse", optimizer=keras.optimizers.legacy.RMSprop(learning_rate=lr)
-        )
+        model.compile(loss="mse", optimizer=RMSprop(learning_rate=lr))
         return model
 
     def act(self, state):
+        # 탐색 비율에 따라서 무작위 탐색 또는 학습된 모델로 행동 선택
         if random.random() <= self.epsilon:
             return self.learn_env.action_space.sample()
         action = self.model.predict(state)[0, 0]
         return np.argmax(action)
 
     def replay(self):
+        # 에피소드 끝내고나면 경험 재생해서 학습...학습용 배치 데이터는 무작위 선택
         batch = random.sample(self.memory, self.batch_size)
         for state, action, reward, next_state, done in batch:
             if not done:
+                # Q 값 계산, np.amax는 최대값 반환
                 reward += self.gamma * np.amax(self.model.predict(next_state)[0, 0])
+            # 이건 여전히 전혀 의미를 모르겠고...
             target = self.model.predict(state)
             target[0, 0, action] = reward
             self.model.fit(state, target, epochs=1, verbose=False)
+        # 다음 에피소드를 위해서 탐색 비율 감쇠
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
     def learn(self, episodes):
+        # 에피소드 수만큼 돌면서
         for e in range(1, episodes + 1):
+            # 환경 초기화하고 게임 시작 상태값 받고
             state = self.learn_env.reset()
             state = np.reshape(
                 state, [1, self.learn_env.lags, self.learn_env.n_features]
             )
+            # 다시 만 번 시도해보는데...
             for _ in range(10000):
+                # 행동 선택하고, 그 행동에 따른 다음 상태, 보상, 종료 여부 등 받고...
                 action = self.act(state)
                 next_state, reward, done, info = self.learn_env.step(action)
+                # 다음 상태 벡터를 (1, 쉬프트 수, 특성 수) 형태로 변환해서 경험으로 저장
                 next_state = np.reshape(
                     next_state, [1, self.learn_env.lags, self.learn_env.n_features]
                 )
                 self.memory.append([state, action, reward, next_state, done])
+                # 다음 반복을 위해 다음 상태가 현재 상태로...
                 state = next_state
+                # 자산 하한선 아래이거나 데이터 다 읽었으면 done....
                 if done:
+                    # 이건 for 문의 _ 를 변수로 사용하는 거 같은데...안 좋은 코드라고 봐...
+                    # 그렇다면 안 죽고 몇 번이나 버텼나를 총 보상 점수로 본다는 얘기
+                    # 환경에서는 같은 변수가 몇 번 맞췄나이고, 에이전트에서는 이게 몇 번 살아 남았나...
                     treward = _ + 1
                     self.trewards.append(treward)
+                    # averages는 마지막 25번의 평균적으로 몇 번째까지 살아남았나....
                     av = sum(self.trewards[-25:]) / 25
-                    perf = self.learn_env.performance
                     self.averages.append(av)
+                    # 이건 환경에서 받은 수익률...근데 수익률을 왜 환경에서 받지?
+                    perf = self.learn_env.performance
                     self.performances.append(perf)
+                    # a는 마지막 25번의 수익률 평균
                     self.aperformances.append(sum(self.performances[-25:]) / 25)
                     self.max_treward = max(self.max_treward, treward)
                     templ = "episode: {:2d}/{} | treward: {:4d} | "
                     templ += "perf: {:5.3f} | av: {:5.1f} | max: {:4d}"
                     print(
                         templ.format(e, episodes, treward, perf, av, self.max_treward),
+                        # 이거 덕분에 커서가 안내려가고 그 상태에서 숫자가 업데이트 되듯이 보이는 효과인 듯...
                         end="\r",
                     )
                     break
+            # 이것도 이전 만 번 게임으로 학습된 모델로 위에 학습환경의 정확도를 보고하고,
+            # 같은 모델로 검증 환경의 정확도를 보고하려고 이런 순서로 진행...
             self.validate(e, episodes)
+            # 그래서 검증까지 한 후에 리플레이해서 다음 에피소드용 모델 학습...
             if len(self.memory) > self.batch_size:
                 self.replay()
 
     def validate(self, e, episodes):
+        # 검증은 에피소드 크기만큼 도는게 아니라, 각 에피소드에 한 번씩...
+        # 검증도 환경 초기화하고 초기 상태 정보 받고...
         state = self.valid_env.reset()
         state = np.reshape(state, [1, self.valid_env.lags, self.valid_env.n_features])
+        # 시도 만 번은 같고...
         for _ in range(10000):
+            # 행동 결정하고, 그에 따른 다음 상태, 보상, 종료 여부 등 받고...
             action = np.argmax(self.model.predict(state)[0, 0])
             next_state, reward, done, info = self.valid_env.step(action)
             state = np.reshape(
                 next_state, [1, self.valid_env.lags, self.valid_env.n_features]
             )
+            # 데이터 다 읽었거나 최소 자산 아래로 떨어졌으면 done...
             if done:
+                # 몇 번 살아남았고, 수익률은 얼마인지...
                 treward = _ + 1
                 perf = self.valid_env.performance
                 self.vperformances.append(perf)
@@ -296,43 +371,14 @@ class FQLAgent:
                 break
 
 
-symbol = "EUR="
-features = [symbol, "r", "s", "m", "v"]
-a = 0
-b = 2000
-c = 500
-learn_env = Finance(
-    symbol,
-    features,
-    window=10,
-    lags=6,
-    leverage=1,
-    min_performance=0.85,
-    start=a,
-    end=a + b,
-    mu=None,
-    std=None,
-)
-learn_env.data.info()
-valid_env = Finance(
-    symbol,
-    features,
-    window=learn_env.window,
-    lags=learn_env.lags,
-    leverage=learn_env.leverage,
-    min_performance=learn_env.min_performance,
-    start=a + b,
-    end=a + b + c,
-    mu=learn_env.mu,
-    std=learn_env.std,
-)
-valid_env.data.info()
 set_seeds(100)
+# 히든 층은 24개 노드로, 학습률...
 agent = FQLAgent(24, 0.0001, learn_env, valid_env)
+# 이번엔 에피소드를 60번만?
 episodes = 61
 with Timer():
     agent.learn(episodes)
-agent.epsilon
+print("학습 후 탐색 비율", agent.epsilon)
 
 plt.figure(figsize=(10, 6))
 x = range(1, len(agent.averages) + 1)
