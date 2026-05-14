@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import random
 import sys
-from pylab import plt
+from pylab import plt, mpl
 
 sys.path.append(".")
 from util import Timer
@@ -11,16 +11,19 @@ from util import Timer
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "5"
 
 import tensorflow as tf
-import keras
-from keras.layers import Dense, Dropout
+from keras.layers import Dense
 from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.optimizers import RMSprop
-from sklearn.metrics import accuracy_score
 from collections import deque
 from tensorflow.python.framework.ops import disable_eager_execution
 
 disable_eager_execution()
+plt.style.use("seaborn-v0_8")
+mpl.rcParams["savefig.dpi"] = 300
+mpl.rcParams["font.family"] = "serif"
+np.set_printoptions(precision=4, suppress=True)
+os.environ["PYTHONHASHSEED"] = "0"
 
 
 class DQLAgent:
