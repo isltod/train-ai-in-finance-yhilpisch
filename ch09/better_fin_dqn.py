@@ -375,7 +375,7 @@ set_seeds(100)
 # 히든 층은 24개 노드로, 학습률...
 agent = FQLAgent(24, 0.0001, learn_env, valid_env)
 # 이번엔 에피소드를 60번만?
-episodes = 61
+episodes = 200
 with Timer():
     agent.learn(episodes)
 print("학습 후 탐색 비율", agent.epsilon)
