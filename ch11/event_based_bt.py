@@ -52,12 +52,13 @@ valid_env = finance.Finance(
     mu=learn_env.mu,
     std=learn_env.std,
 )
+
 tradingbot.set_seeds(100)
-agent = tradingbot.TradingBot(24, 0.001, learn_env, valid_env)
+agent = tradingbot.TradingBot(24, 0.001, learn_env, valid_env, load_model=True)
 # 당연히 에이전트를 훈련 시켜야 뭔가 되지...참내...
 episodes = 61
-with Timer():
-    agent.learn(episodes)
+# with Timer():
+#     agent.learn(episodes)
 
 bb = bt.BacktestingBase(
     env=agent.learn_env,
@@ -89,4 +90,57 @@ tb_.backtest_strategy()
 ax = tb.net_wealths.plot(figsize=(10, 6))
 tb_.net_wealths.columns = ["net_wealth (after tc)"]
 tb_.net_wealths.plot(ax=ax)
+plt.show()
+
+test_env = finance.Finance(
+    symbol,
+    features=learn_env.features,
+    window=learn_env.window,
+    lags=learn_env.lags,
+    leverage=learn_env.leverage,
+    min_performance=0.0,
+    min_accuracy=0.0,
+    start=a + b + c,
+    end=None,
+    mu=learn_env.mu,
+    std=learn_env.std,
+)
+env = test_env
+
+tb = bt.TBBacktester(env, agent.model, 10000, 0.0, 0, verbose=False)
+tb.backtest_strategy()
+tb_ = bt.TBBacktester(env, agent.model, 10000, 0.00012, 0.0, verbose=False)
+tb_.backtest_strategy()
+
+ax = tb.net_wealths.plot(figsize=(10, 6))
+tb_.net_wealths.columns = ["net_wealth (after tc)"]
+tb_.net_wealths.plot(ax=ax)
+plt.show()
+
+
+# 벡터화 백테스트와 비교
+def reshape(s):
+    return np.reshape(s, [1, learn_env.lags, learn_env.n_features])
+
+
+def backtest(agent, env):
+    env.min_accuracy = 0.0
+    env.min_performance = 0.0
+    done = False
+    env.data["p"] = 0
+    state = env.reset()
+    while not done:
+        action = np.argmax(agent.model.predict(reshape(state))[0, 0])
+        position = 1 if action == 1 else -1
+        env.data.loc[:, "p"].iloc[env.bar] = position
+        state, reward, done, info = env.step(action)
+    env.data["s"] = env.data["p"] * env.data["r"] * learn_env.leverage
+
+
+backtest(agent, env)
+
+aa = tb.net_wealths / tb.net_wealths.iloc[0]
+ax = (tb.net_wealths / tb.net_wealths.iloc[0]).plot(figsize=(10, 6))
+tp = env.data[["r", "s"]].iloc[env.lags :].cumsum().apply(np.exp)
+(tp / tp.iloc[0]).plot(ax=ax)
 plt.show()
