@@ -79,25 +79,52 @@ print(
 )
 print("레버리지 10배에서 중앙값\n", data[["atr", "atr%"]].median() * leverage)
 
-data[["atr", "atr%"]].plot(subplots=True, figsize=(10, 6))
-plt.show()
+# data[["atr", "atr%"]].plot(subplots=True, figsize=(10, 6))
+# plt.show()
 
 
-# test_env = finance.Finance(
-#     symbol,
-#     features=learn_env.features,
-#     window=learn_env.window,
-#     lags=learn_env.lags,
-#     leverage=learn_env.leverage,
-#     min_performance=0.0,
-#     min_accuracy=0.0,
-#     start=a + b + c,
-#     end=None,
-#     mu=learn_env.mu,
-#     std=learn_env.std,
-# )
-# env = test_env
+test_env = finance.Finance(
+    symbol,
+    features=learn_env.features,
+    window=learn_env.window,
+    lags=learn_env.lags,
+    leverage=learn_env.leverage,
+    min_performance=0.0,
+    min_accuracy=0.0,
+    start=a + b + c,
+    end=None,
+    mu=learn_env.mu,
+    std=learn_env.std,
+)
+env = test_env
 
-# agent = tradingbot.TradingBot(24, 0.001, learn_env, valid_env, load_model=True)
+# 모델은 앞에서 학습한 걸 로딩하는데...
+# 다시 학습해야 할 수도 있고, 저장 모델은 최고 승률 또는 최대 자산 경우로 바꿔볼 수도...
+agent = tradingbot.TradingBot(24, 0.001, learn_env, valid_env, load_model=True)
 
-# tb = tbbrm.TBBacktesterRM(env, agent.model, 10000, 0.0, 0, verbose=False)
+tb = tbbrm.TBBacktesterRM(env, agent.model, 10000, 0.0, 0, verbose=False)
+
+# 이건 기본 전략 백테스팅
+print("기본 전략 백테스팅")
+tb.backtest_strategy(sl=None, tsl=None, tp=None, wait=5)
+# 손절만 추가한 백테스팅 - 종가 손절
+print("손절만 추가한 백테스팅 - 종가 손절")
+tb.backtest_strategy(sl=0.0175, tsl=None, tp=None, wait=5, guarantee=False)
+# 손절만 추가한 백테스팅 - 손절가 손절
+print("손절만 추가한 백테스팅 - 손절가 손절")
+tb.backtest_strategy(sl=0.017, tsl=None, tp=None, wait=5, guarantee=True)
+# 추적 손절만 추가한 백테스팅
+print("추적 손절만 추가한 백테스팅")
+tb.backtest_strategy(sl=None, tsl=0.015, tp=None, wait=5)
+# 익절만 추가한 백테스팅 - 종가 익절
+print("익절만 추가한 백테스팅 - 종가 익절")
+tb.backtest_strategy(sl=None, tsl=None, tp=0.015, wait=5, guarantee=False)
+# 익절만 추가한 백테스팅 - 익절가 익절
+print("익절만 추가한 백테스팅 - 익절가 익절")
+tb.backtest_strategy(sl=None, tsl=None, tp=0.015, wait=5, guarantee=True)
+# 손절과 익절 추가한 백테스팅
+print("손절과 익절 추가한 백테스팅")
+tb.backtest_strategy(sl=0.015, tsl=None, tp=0.0185, wait=5)
+# 추적 손절과 익절 추가한 백테스팅
+print("추적 손절과 익절 추가한 백테스팅")
+tb.backtest_strategy(sl=None, tsl=0.02, tp=0.02, wait=5)
