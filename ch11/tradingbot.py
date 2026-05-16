@@ -41,6 +41,7 @@ class TradingBot:
         valid_env=None,
         val=True,
         dropout=False,
+        load_model=False,
     ):
         self.learn_env = learn_env
         self.valid_env = valid_env
@@ -58,7 +59,15 @@ class TradingBot:
         self.aperformances = list()
         self.vperformances = list()
         self.memory = deque(maxlen=2000)
-        self.model = self._build_model(hidden_units, learning_rate, dropout)
+        if load_model:
+            self.model = self._load_model()
+        else:
+            self.model = self._build_model(hidden_units, learning_rate, dropout)
+        self.best_val_acc = 0.0
+
+    def _load_model(self):
+        model = keras.models.load_model("data/rl_model")
+        return model
 
     def _build_model(self, hu, lr, dropout):
         # 3개의 완전연결 층 사이에 드롭아웃
@@ -130,6 +139,7 @@ class TradingBot:
                         templ.format(e, episodes, treward, perf, av, self.max_treward),
                         end="\r",
                     )
+                    # perf/treward가 최상일 때 모델 저장?
                     break
             # 검증 정확도도 같은 모델에서 측정하고
             if self.val:
@@ -138,6 +148,7 @@ class TradingBot:
             if len(self.memory) > self.batch_size:
                 self.replay()
         print()
+        self.save_model()
 
     def validate(self, e, episodes):
         # 검증 데이터로 정확도 측정...
@@ -160,6 +171,9 @@ class TradingBot:
                     templ += 71 * "="
                     print(templ.format(e, episodes, treward, perf, self.epsilon))
                 break
+
+    def save_model(self):
+        self.model.save("data/rl_model")
 
 
 def plot_treward(agent):
